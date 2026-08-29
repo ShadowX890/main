@@ -1,0 +1,277 @@
+--  Keyless loader - Shadow X Hub
+--  One file for every script that is served WITHOUT a key.
+--  Change the three lines under CONFIG and nothing else.
+--
+--  !! ASCII ONLY IN THIS FILE. NO THAI, NO BOX DRAWING, NO EMOJI. !!
+--
+--  Not because keyless needs Luraph, but because you will eventually paste
+--  this into Junkie's Script Protected slot (see WHERE TO PUT THIS below) and
+--  Luraph reads the source with a single byte code page. Any byte above 127
+--  kills it with
+--      "No mapping for the Unicode character exists in the target multi-byte code page"
+--  and the obfuscated output then fails silently in game: no error, no print,
+--  nothing runs. Keeping this file ASCII from the start means you never have
+--  to remember the rule on the day you actually need it.
+--
+--  WHAT KEYLESS BUYS YOU, AND WHAT IT DOES NOT
+--    buys      the source is not in a public repo, and the GitHub token never
+--              leaves the Worker
+--    does not  secrecy. Whoever holds this loader can read the URL in it and
+--              fetch the same source from a browser. That is inherent: the
+--              loader has to reach the Worker, so it has to carry the address.
+--
+--  WHERE TO PUT THIS  (two ways, pick by how much you care)
+--    1. Hand out  loadstring(game:HttpGet("<ENDPOINT>?s=<SCRIPT>"))()  directly.
+--       Simplest. Nothing to host. The address is public, and that is fine
+--       when the script is meant to be free anyway.
+--    2. Put this file in Junkie's Script Protected slot with a dummy keyless
+--       service (getgenv().SCRIPT_KEY = "KEYLESS"). Junkie obfuscates it, so
+--       TOKEN below is not sitting in plain sight, and the Worker then refuses
+--       anyone who guesses  ?s=<SCRIPT>  without it.
+--       Still not secrecy - an obfuscated loader can be unwrapped - but it
+--       stops the one attack that actually happens: someone who found the
+--       endpoint in another script trying script ids until one answers.
+
+-- ---------------------------------------------------------------
+--  CONFIG
+-- ---------------------------------------------------------------
+local ENDPOINT = "https://dry-sunset-f296.mr-personnel801.workers.dev/"
+
+--  Must match GH_PATH_<SCRIPT> in the Worker, upper case.
+local SCRIPT = "AFTERNIGHT"
+
+--  Leave "" when KEYLESS_<SCRIPT> is set to 1 in the Worker.
+--  Set it to the same random string when KEYLESS_<SCRIPT> holds one.
+local TOKEN = "pak09ju9py713e1ue09jqwiodfnqbahfvi-ADoqkwif09qu89y12heuqwfpifj0pq8u"
+
+--  Ask the Worker to lift top level locals (Luau caps them at 200 per chunk).
+--  Project Afternight has 93, so it does not need this. Turn it on only for a
+--  script that actually fails to compile with "too many local variables".
+local LIFT = false
+
+-- ---------------------------------------------------------------
+--  TWO STEP HANDSHAKE - nothing to configure here
+--
+--  When CHALLENGE_<SCRIPT> is on in the Worker, the first reply is not the
+--  script. It is a small stub that proves the request came from a Roblox
+--  client that is actually running, and only then asks for the real payload.
+--
+--  This file needs no change for that, and that is the whole point of the
+--  design: a loader only fetches, compiles and runs whatever came back, so
+--  the stub can stand in for the script. The handshake can therefore be
+--  turned on, changed or turned off from the Cloudflare dashboard while
+--  every loader already sitting in a Junkie slot keeps working untouched.
+--
+--  !! It raises the bar. It does not close the door.
+--  setclipboard(game:HttpGet(url)) now returns the stub instead of the
+--  source, so copying one line is no longer enough - but anyone who hooks
+--  HttpGet or loadstring still gets everything. That is not a hole to be
+--  patched later; the script has to arrive as text a compiler can read, so
+--  whoever can run it can read it. Do not write code here that assumes
+--  otherwise.
+-- ---------------------------------------------------------------
+
+-- ---------------------------------------------------------------
+--  on screen message
+--
+--  warn() alone is not enough. Almost nobody opens the console, so a warn-only
+--  failure looks identical to "the script is broken" from the user's side.
+-- ---------------------------------------------------------------
+local function show(title, detail)
+    pcall(function() warn("Shadow X: " .. title .. " - " .. tostring(detail)) end)
+    pcall(function()
+        local parent = game:GetService("CoreGui")
+        pcall(function() if gethui then parent = gethui() end end)
+
+        local old = parent:FindFirstChild("ShadowXLoaderMsg")
+        if old then old:Destroy() end
+
+        local gui = Instance.new("ScreenGui")
+        gui.Name = "ShadowXLoaderMsg"
+        gui.ResetOnSpawn = false
+        gui.DisplayOrder = 2147483647
+        gui.Parent = parent
+
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.fromOffset(430, 190)
+        frame.Position = UDim2.new(0.5, -215, 0.5, -95)
+        frame.BackgroundColor3 = Color3.fromRGB(14, 20, 34)
+        frame.BorderSizePixel = 0
+        frame.Active = true
+        frame.Draggable = true
+        frame.Parent = gui
+
+        local head = Instance.new("TextLabel")
+        head.Size = UDim2.new(1, -56, 0, 30)
+        head.Position = UDim2.fromOffset(14, 10)
+        head.BackgroundTransparency = 1
+        head.Font = Enum.Font.GothamBold
+        head.TextSize = 15
+        head.TextXAlignment = Enum.TextXAlignment.Left
+        head.TextColor3 = Color3.fromRGB(255, 130, 130)
+        head.Text = title
+        head.Parent = frame
+
+        local body = Instance.new("TextLabel")
+        body.Size = UDim2.new(1, -28, 1, -56)
+        body.Position = UDim2.fromOffset(14, 44)
+        body.BackgroundTransparency = 1
+        body.Font = Enum.Font.Code
+        body.TextSize = 13
+        body.TextXAlignment = Enum.TextXAlignment.Left
+        body.TextYAlignment = Enum.TextYAlignment.Top
+        body.TextColor3 = Color3.fromRGB(225, 235, 250)
+        body.TextWrapped = true
+        body.Text = tostring(detail) .. "\n\nSend this message to the admin."
+        body.Parent = frame
+
+        local x = Instance.new("TextButton")
+        x.Size = UDim2.fromOffset(32, 26)
+        x.Position = UDim2.new(1, -40, 0, 12)
+        x.BackgroundColor3 = Color3.fromRGB(40, 55, 85)
+        x.BorderSizePixel = 0
+        x.Font = Enum.Font.GothamBold
+        x.TextSize = 13
+        x.TextColor3 = Color3.fromRGB(235, 240, 250)
+        x.Text = "X"
+        x.Parent = frame
+        x.MouseButton1Click:Connect(function() gui:Destroy() end)
+    end)
+end
+
+-- ---------------------------------------------------------------
+--  fetch
+--
+--  Several ways because executors do not all expose the same one, and a brief
+--  network hiccup is normal - one retry turns "the script is broken" back into
+--  a two second wait.
+-- ---------------------------------------------------------------
+local function grab(url)
+    local ways = {
+        function() return game:HttpGet(url, true) end,
+        function() return game:HttpGetAsync(url) end,
+        function() return request and request({ Url = url, Method = "GET" }).Body end,
+        function() return syn and syn.request
+            and syn.request({ Url = url, Method = "GET" }).Body end,
+    }
+    for _, way in ipairs(ways) do
+        local ok, body = pcall(way)
+        if ok and type(body) == "string" and #body > 0 then return body end
+    end
+    return nil
+end
+
+-- ---------------------------------------------------------------
+--  percent encoding
+--
+--  !! TOKEN goes into a URL, so it cannot be pasted in raw.
+--  A space is the one that actually bites: a raw space ends the request line
+--  in HTTP, so what happens next is decided by whichever executor the player
+--  is using. Some encode it for you, some send it as is and collect a 400,
+--  some drop everything after it. That is the worst kind of bug this project
+--  has - it works on the machine you tested on and fails for a stranger, with
+--  an error that points nowhere near the cause.
+--
+--  Brackets, quotes and the rest are the same story with better odds.
+--
+--  Encoding here removes the whole question: any token at all is safe, and
+--  the Worker decodes it back before comparing. Keeping the token to letters
+--  and digits is still the calmer choice, but it is no longer required.
+--
+--  The kept set is RFC 3986 "unreserved" - the characters every parser in the
+--  chain agrees to leave alone.
+-- ---------------------------------------------------------------
+local function urlencode(s)
+    return (s:gsub("[^%w%-%._~]", function(c)
+        return string.format("%%%02X", string.byte(c))
+    end))
+end
+
+local url = ENDPOINT .. "?s=" .. SCRIPT
+if TOKEN ~= "" then url = url .. "&t=" .. urlencode(TOKEN) end
+if LIFT then url = url .. "&lift=1" end
+
+local src
+for i = 1, 3 do
+    src = grab(url)
+    if src then break end
+    if i < 3 then task.wait(1.5) end
+end
+
+if not src then
+    show("Cannot reach the server", "Check your connection and try again.")
+    return
+end
+
+-- ---------------------------------------------------------------
+--  rejection or real code?
+--
+--  !! DO NOT test  src:sub(1, 2) == "--"
+--  The real payload starts with  --[[ build xxxxxxxx ]]  which is also two
+--  dashes, so that test rejects every valid response. It did exactly that once
+--  already in loader-tds.lua.
+--
+--  Match the known rejection wording instead. The keyless path has two of its
+--  own on top of the shared ones:
+--      -- bad token            TOKEN here does not match KEYLESS_<SCRIPT>
+--      -- no gate for X        KEYLESS_<SCRIPT> is not set at all
+--  Both are config mistakes on our side, not the user's, so say so plainly
+--  rather than making them think they did something wrong.
+-- ---------------------------------------------------------------
+local reject = src:match("^%-%-%s*(bad token[^\r\n]*)")
+    or src:match("^%-%-%s*(no gate[^\r\n]*)")
+    or src:match("^%-%-%s*(conflicting config[^\r\n]*)")
+    or src:match("^%-%-%s*(gate not configured[^\r\n]*)")
+    or src:match("^%-%-%s*(unknown script[^\r\n]*)")
+    or src:match("^%-%-%s*(bad script id[^\r\n]*)")
+    or src:match("^%-%-%s*(missing script id[^\r\n]*)")
+    or src:match("^%-%-%s*(key rejected[^\r\n]*)")
+    or src:match("^%-%-%s*(missing key[^\r\n]*)")
+    or src:match("^%-%-%s*(upstream[^\r\n]*)")
+    or src:match("^%-%-%s*(method not allowed[^\r\n]*)")
+
+if reject then
+    show("Server refused", reject .. "\n(this is a setup problem, tell the admin)")
+    return
+end
+
+if #src < 2000 then
+    show("Unexpected reply", "Only " .. #src .. " bytes.\n"
+        .. src:sub(1, 150):gsub("[\r\n]+", " "))
+    return
+end
+
+local fn, err = loadstring(src, "@ShadowX")
+if not fn then
+    show("Script failed to compile", tostring(err):sub(1, 200))
+    return
+end
+
+-- ---------------------------------------------------------------
+--  private environment - only when the Worker lifted the locals
+--
+--  !! Do not do this unconditionally.
+--  Without LIFT the script still declares its own locals, so it needs nothing
+--  from us, and wrapping it anyway only adds a way to break WindUI:
+--  WindUI keeps its require state in _G, and handing it a fresh table makes it
+--  fail with  could not reset to requiring context  followed by nil calls
+--  inside WindUI itself, which points the blame at the wrong file entirely.
+--
+--  Reads fall through to the real globals, writes land in here.
+--  pcall on purpose: if setfenv is blocked, running without it beats not
+--  running at all.
+-- ---------------------------------------------------------------
+if LIFT then
+    pcall(function()
+        local realEnv = getfenv(0)
+        setfenv(fn, setmetatable({}, {
+            __index = function(_, k) return realEnv[k] end,
+            __newindex = function(t, k, v) rawset(t, k, v) end,
+        }))
+    end)
+end
+
+local ok, runErr = pcall(fn)
+if not ok then
+    show("Script error", tostring(runErr):sub(1, 250))
+end
